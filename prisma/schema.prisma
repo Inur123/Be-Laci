@@ -26,6 +26,7 @@ model User {
   passwordHash  String
   role          Role
   isActive      Boolean  @default(true)
+  tokenVersion  Int      @default(0)
   emailVerified DateTime?
   image         String?
   createdAt     DateTime @default(now())
