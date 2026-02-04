@@ -45,6 +45,8 @@ model Periode {
   updatedAt DateTime @updatedAt
 
   user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, nama])
 }
 
 model RefreshToken {

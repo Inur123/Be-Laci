@@ -20,7 +20,7 @@
 ## Tahap Berikutnya (Belum)
 - [x] Util response standar (success/error/pagination)
 - [x] Auth: register, login, refresh, me
-- [ ] Periode: CRUD + activate
+- [x] Periode: CRUD + activate
 - [ ] Arsip Surat: CRUD + download + stats
 - [ ] Berkas Pimpinan: CRUD + download
 - [ ] Berkas SP: CRUD + download + stats

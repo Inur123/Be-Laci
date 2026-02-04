@@ -20,7 +20,8 @@ const authRequired = async (req, res, next) => {
       select: { id: true, role: true, tokenVersion: true, isActive: true },
     });
 
-    if (!user || !user.isActive || user.tokenVersion !== payload.tv) {
+    const tokenVersion = payload.tv ?? 0;
+    if (!user || !user.isActive || user.tokenVersion !== tokenVersion) {
       const error = new Error("Token tidak valid");
       error.statusCode = 401;
       error.code = "UNAUTHORIZED";
