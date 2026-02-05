@@ -15,35 +15,38 @@ ALTER TABLE "Anggota" DROP CONSTRAINT "Anggota_periodeId_fkey";
 -- DropForeignKey
 ALTER TABLE "Anggota" DROP CONSTRAINT "Anggota_userId_fkey";
 
--- DropForeignKey
-ALTER TABLE "PengajuanPac" DROP CONSTRAINT "PengajuanPac_periodePacId_fkey";
-
--- DropForeignKey
-ALTER TABLE "PengajuanPac" DROP CONSTRAINT "PengajuanPac_userId_fkey";
 
 -- AlterTable
-ALTER TABLE "Anggota" DROP COLUMN "image",
-DROP COLUMN "isActive",
-DROP COLUMN "nama",
-DROP COLUMN "organisasi",
-ADD COLUMN     "foto" TEXT,
-ADD COLUMN     "hoby" TEXT,
-ADD COLUMN     "jabatan" TEXT,
-ADD COLUMN     "namaLengkap" TEXT NOT NULL,
-ADD COLUMN     "nia" TEXT,
-ADD COLUMN     "nik" TEXT,
-ADD COLUMN     "rfid" TEXT,
-ADD COLUMN     "tempatLahir" TEXT,
-ALTER COLUMN "jenisKelamin" SET NOT NULL;
+DROP TABLE IF EXISTS "Anggota";
+
+CREATE TABLE "Anggota" (
+    "id" TEXT NOT NULL,
+    "namaLengkap" TEXT NOT NULL,
+    "email" TEXT,
+    "nik" TEXT,
+    "nia" TEXT,
+    "jenisKelamin" TEXT NOT NULL,
+    "noHp" TEXT,
+    "tempatLahir" TEXT,
+    "tanggalLahir" TIMESTAMP(3),
+    "jabatan" TEXT,
+    "rfid" TEXT,
+    "hoby" TEXT,
+    "alamat" TEXT,
+    "foto" TEXT,
+    "userId" TEXT NOT NULL,
+    "periodeId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Anggota_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX "Anggota_userId_idx" ON "Anggota"("userId");
+CREATE INDEX "Anggota_periodeId_idx" ON "Anggota"("periodeId");
 
 -- AddForeignKey
-ALTER TABLE "Anggota" ADD CONSTRAINT "Anggota_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Anggota" ADD CONSTRAINT "Anggota_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id");
 
 -- AddForeignKey
-ALTER TABLE "Anggota" ADD CONSTRAINT "Anggota_periodeId_fkey" FOREIGN KEY ("periodeId") REFERENCES "Periode"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PengajuanPac" ADD CONSTRAINT "PengajuanPac_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PengajuanPac" ADD CONSTRAINT "PengajuanPac_periodePacId_fkey" FOREIGN KEY ("periodePacId") REFERENCES "Periode"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Anggota" ADD CONSTRAINT "Anggota_periodeId_fkey" FOREIGN KEY ("periodeId") REFERENCES "Periode"("id");

@@ -25,7 +25,7 @@
 - [x] Berkas Pimpinan: CRUD + download
 - [x] Berkas SP: CRUD + download + stats
 - [x] Anggota: CRUD + stats + image
-- [ ] Kegiatan: CRUD + stats
+- [x] Kegiatan: CRUD + stats
 - [x] Pengajuan PAC: CRUD + approve/reject + stats + download
 - [ ] Log Aktivitas: list + stats + monitoring
 - [x] User PAC: list + toggle active + reset password + stats

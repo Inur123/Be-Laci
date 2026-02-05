@@ -168,6 +168,23 @@ const options = {
             updatedAt: { type: "string" },
           },
         },
+        Kegiatan: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            judul: { type: "string" },
+            tanggalPelaksanaan: { type: "string" },
+            lokasi: { type: "string", nullable: true },
+            waktuMulai: { type: "string", nullable: true },
+            waktuSelesai: { type: "string", nullable: true },
+            deskripsi: { type: "string", nullable: true },
+            warnaLabel: { type: "string", nullable: true },
+            userId: { type: "string" },
+            periodeId: { type: "string", nullable: true },
+            createdAt: { type: "string" },
+            updatedAt: { type: "string" },
+          },
+        },
         UserPac: {
           type: "object",
           properties: {
