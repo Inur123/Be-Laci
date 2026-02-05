@@ -29,5 +29,5 @@
 - [ ] Pengajuan PAC: CRUD + approve/reject + stats + download
 - [ ] Log Aktivitas: list + stats + monitoring
 - [ ] User PAC: list + toggle active + reset password + stats
-- [ ] Profil + email verify/resend
+- [x] Profil + email verify/resend
 - [ ] Realtime (SSE/WebSocket)

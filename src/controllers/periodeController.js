@@ -107,7 +107,27 @@ const createPeriode = async (req, res, next) => {
       throw error;
     }
 
-    const existingCount = await prisma.periode.count({ where: { userId } });
+    const [existingCount, user] = await prisma.$transaction([
+      prisma.periode.count({ where: { userId } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { emailVerified: true },
+      }),
+    ]);
+
+    if (!user) {
+      const error = new Error("User tidak ditemukan");
+      error.statusCode = 404;
+      error.code = "NOT_FOUND";
+      throw error;
+    }
+
+    if (!user.emailVerified) {
+      const error = new Error("Email belum terverifikasi");
+      error.statusCode = 403;
+      error.code = "EMAIL_NOT_VERIFIED";
+      throw error;
+    }
     const active =
       existingCount === 0 ? true : isActive === undefined ? false : Boolean(isActive);
 
