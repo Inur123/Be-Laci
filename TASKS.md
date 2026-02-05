@@ -24,7 +24,7 @@
 - [x] Arsip Surat: CRUD + download + stats
 - [x] Berkas Pimpinan: CRUD + download
 - [x] Berkas SP: CRUD + download + stats
-- [ ] Anggota: CRUD + stats + image
+- [x] Anggota: CRUD + stats + image
 - [ ] Kegiatan: CRUD + stats
 - [x] Pengajuan PAC: CRUD + approve/reject + stats + download
 - [ ] Log Aktivitas: list + stats + monitoring
