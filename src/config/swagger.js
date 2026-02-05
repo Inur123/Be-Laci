@@ -66,6 +66,27 @@ const options = {
             updatedAt: { type: "string" },
           },
         },
+        ArsipSurat: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            nomorSurat: { type: "string" },
+            jenisSurat: { type: "string", enum: ["MASUK", "KELUAR"] },
+            organisasi: { type: "string", enum: ["IPNU", "IPPNU", "BERSAMA"], nullable: true },
+            tanggalSurat: { type: "string" },
+            penerimaPengirim: { type: "string" },
+            perihal: { type: "string" },
+            deskripsi: { type: "string", nullable: true },
+            fileUrl: { type: "string", nullable: true },
+            fileName: { type: "string", nullable: true },
+            fileMime: { type: "string", nullable: true },
+            fileSize: { type: "integer", nullable: true },
+            userId: { type: "string" },
+            periodeId: { type: "string", nullable: true },
+            createdAt: { type: "string" },
+            updatedAt: { type: "string" },
+          },
+        },
         PaginationMeta: {
           type: "object",
           properties: {

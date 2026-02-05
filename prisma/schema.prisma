@@ -19,6 +19,17 @@ enum Role {
   SEKRETARIS_CABANG
 }
 
+enum JenisSurat {
+  MASUK
+  KELUAR
+}
+
+enum Organisasi {
+  IPNU
+  IPPNU
+  BERSAMA
+}
+
 model User {
   id            String   @id @default(uuid())
   name          String
@@ -35,6 +46,7 @@ model User {
   updatedAt     DateTime @updatedAt
 
   periodes      Periode[]
+  arsipSurats   ArsipSurat[]
   refreshTokens RefreshToken[]
 }
 
@@ -47,8 +59,34 @@ model Periode {
   updatedAt DateTime @updatedAt
 
   user      User     @relation(fields: [userId], references: [id])
+  arsipSurats ArsipSurat[]
 
   @@unique([userId, nama])
+}
+
+model ArsipSurat {
+  id        String   @id @default(uuid())
+  nomorSurat String
+  jenisSurat JenisSurat
+  organisasi Organisasi?
+  tanggalSurat DateTime
+  penerimaPengirim String
+  perihal String
+  deskripsi String?
+  fileUrl   String?
+  fileName  String?
+  fileMime  String?
+  fileSize  Int?
+  userId    String
+  periodeId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  periode   Periode? @relation(fields: [periodeId], references: [id])
+
+  @@index([userId])
+  @@index([periodeId])
 }
 
 model RefreshToken {

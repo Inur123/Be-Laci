@@ -21,7 +21,7 @@
 - [x] Util response standar (success/error/pagination)
 - [x] Auth: register, login, refresh, me
 - [x] Periode: CRUD + activate
-- [ ] Arsip Surat: CRUD + download + stats
+- [x] Arsip Surat: CRUD + download + stats
 - [ ] Berkas Pimpinan: CRUD + download
 - [ ] Berkas SP: CRUD + download + stats
 - [ ] Anggota: CRUD + stats + image
