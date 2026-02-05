@@ -50,6 +50,7 @@ model User {
   berkasSps     BerkasSp[]
   anggotas      Anggota[]
   kegiatans     Kegiatan[]
+  logActivities LogActivity[]
   pengajuanPacs PengajuanPac[]
   refreshTokens RefreshToken[]
 }
@@ -189,6 +190,22 @@ model Kegiatan {
 
   @@index([userId])
   @@index([periodeId])
+}
+
+model LogActivity {
+  id        String   @id @default(uuid())
+  action    String
+  method    String
+  endpoint  String
+  description String?
+  metadata  Json?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model PengajuanPac {

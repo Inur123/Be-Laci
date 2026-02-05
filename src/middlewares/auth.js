@@ -29,6 +29,25 @@ const authRequired = async (req, res, next) => {
     }
 
     req.user = { id: user.id, role: user.role };
+    try {
+      await prisma.logActivity.create({
+        data: {
+          userId: user.id,
+          action: "REQUEST",
+          method: req.method,
+          endpoint: req.originalUrl || req.url || "",
+          description: req.method === "GET" ? "Akses data" : "Perubahan data",
+          metadata: {
+            ip:
+              req.headers["x-forwarded-for"] ||
+              req.socket?.remoteAddress ||
+              null,
+            userAgent: req.headers["user-agent"] || null,
+          },
+        },
+      });
+    } catch (err) {
+    }
     return next();
   } catch (err) {
     const error = new Error("Token tidak valid");

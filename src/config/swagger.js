@@ -185,6 +185,19 @@ const options = {
             updatedAt: { type: "string" },
           },
         },
+        LogActivity: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            action: { type: "string" },
+            method: { type: "string" },
+            endpoint: { type: "string" },
+            description: { type: "string", nullable: true },
+            metadata: { type: "object", nullable: true },
+            userId: { type: "string" },
+            createdAt: { type: "string" },
+          },
+        },
         UserPac: {
           type: "object",
           properties: {

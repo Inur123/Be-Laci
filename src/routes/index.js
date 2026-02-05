@@ -9,6 +9,7 @@ const pengajuanPacRoutes = require("./pengajuanPac");
 const userRoutes = require("./users");
 const anggotaRoutes = require("./anggota");
 const kegiatanRoutes = require("./kegiatan");
+const logActivityRoutes = require("./logActivity");
 
 const router = express.Router();
 
@@ -26,5 +27,6 @@ router.use("/pengajuan-pac", pengajuanPacRoutes);
 router.use("/users", userRoutes);
 router.use("/anggota", anggotaRoutes);
 router.use("/kegiatan", kegiatanRoutes);
+router.use("/log-activity", logActivityRoutes);
 
 module.exports = router;
