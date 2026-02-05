@@ -8,7 +8,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "lint": "eslint \"src/**/*.js\"",
-    "test": "node --test"
+    "test": "node scripts/test-setup.js && node --test"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -31,6 +31,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "supertest": "^7.2.2"
   }
 }
