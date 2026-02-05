@@ -47,6 +47,9 @@ model User {
 
   periodes      Periode[]
   arsipSurats   ArsipSurat[]
+  berkasPimpinans BerkasPimpinan[]
+  berkasSps     BerkasSp[]
+  pengajuanPacs PengajuanPac[]
   refreshTokens RefreshToken[]
 }
 
@@ -60,8 +63,56 @@ model Periode {
 
   user      User     @relation(fields: [userId], references: [id])
   arsipSurats ArsipSurat[]
+  berkasPimpinans BerkasPimpinan[]
+  berkasSps   BerkasSp[]
+  pengajuanPacAsal PengajuanPac[] @relation("PeriodePac")
+  pengajuanPacCabang PengajuanPac[] @relation("PeriodeCabang")
 
   @@unique([userId, nama])
+}
+
+model BerkasSp {
+  id        String   @id @default(uuid())
+  namaPimpinan String
+  organisasi Organisasi
+  tanggalMulai DateTime
+  tanggalBerakhir DateTime
+  catatan   String?
+  fileUrl   String?
+  fileName  String?
+  fileMime  String?
+  fileSize  Int?
+  userId    String
+  periodeId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  periode   Periode? @relation(fields: [periodeId], references: [id])
+
+  @@index([userId])
+  @@index([periodeId])
+}
+
+model BerkasPimpinan {
+  id        String   @id @default(uuid())
+  nama      String
+  tanggal   DateTime
+  catatan   String?
+  fileUrl   String?
+  fileName  String?
+  fileMime  String?
+  fileSize  Int?
+  userId    String
+  periodeId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  periode   Periode? @relation(fields: [periodeId], references: [id])
+
+  @@index([userId])
+  @@index([periodeId])
 }
 
 model ArsipSurat {
@@ -87,6 +138,34 @@ model ArsipSurat {
 
   @@index([userId])
   @@index([periodeId])
+}
+
+model PengajuanPac {
+  id            String         @id @default(uuid())
+  nomorSurat    String
+  penerima      Organisasi
+  tanggal       DateTime
+  keperluan     String
+  deskripsi     String?
+  status        String          @default("PENDING")
+  alasanPenolakan String?
+  fileUrl       String?
+  fileName      String?
+  fileMime      String?
+  fileSize      Int?
+  userId        String
+  periodePacId  String
+  periodeCabangId String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user          User    @relation(fields: [userId], references: [id])
+  periodePac    Periode @relation("PeriodePac", fields: [periodePacId], references: [id])
+  periodeCabang Periode? @relation("PeriodeCabang", fields: [periodeCabangId], references: [id])
+
+  @@index([userId])
+  @@index([periodePacId])
+  @@index([periodeCabangId])
 }
 
 model RefreshToken {

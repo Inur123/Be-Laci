@@ -38,4 +38,22 @@ const authRequired = async (req, res, next) => {
   }
 };
 
-module.exports = { authRequired };
+const roleRequired = (...roles) => (req, res, next) => {
+  if (!req.user) {
+    const error = new Error("Belum terautentikasi");
+    error.statusCode = 401;
+    error.code = "UNAUTHORIZED";
+    return next(error);
+  }
+
+  if (!roles.includes(req.user.role)) {
+    const error = new Error("Akses ditolak");
+    error.statusCode = 403;
+    error.code = "ROLE_FORBIDDEN";
+    return next(error);
+  }
+
+  return next();
+};
+
+module.exports = { authRequired, roleRequired };

@@ -3,6 +3,10 @@ const authRoutes = require("./auth");
 const periodeRoutes = require("./periode");
 const profileRoutes = require("./profile");
 const arsipSuratRoutes = require("./arsipSurat");
+const berkasPimpinanRoutes = require("./berkasPimpinan");
+const berkasSpRoutes = require("./berkasSp");
+const pengajuanPacRoutes = require("./pengajuanPac");
+const userRoutes = require("./users");
 
 const router = express.Router();
 
@@ -14,5 +18,9 @@ router.use("/auth", authRoutes);
 router.use("/periodes", periodeRoutes);
 router.use("/profile", profileRoutes);
 router.use("/arsip-surat", arsipSuratRoutes);
+router.use("/berkas-pimpinan", berkasPimpinanRoutes);
+router.use("/berkas-sp", berkasSpRoutes);
+router.use("/pengajuan-pac", pengajuanPacRoutes);
+router.use("/users", userRoutes);
 
 module.exports = router;

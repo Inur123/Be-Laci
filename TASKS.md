@@ -22,12 +22,12 @@
 - [x] Auth: register, login, refresh, me
 - [x] Periode: CRUD + activate
 - [x] Arsip Surat: CRUD + download + stats
-- [ ] Berkas Pimpinan: CRUD + download
-- [ ] Berkas SP: CRUD + download + stats
+- [x] Berkas Pimpinan: CRUD + download
+- [x] Berkas SP: CRUD + download + stats
 - [ ] Anggota: CRUD + stats + image
 - [ ] Kegiatan: CRUD + stats
-- [ ] Pengajuan PAC: CRUD + approve/reject + stats + download
+- [x] Pengajuan PAC: CRUD + approve/reject + stats + download
 - [ ] Log Aktivitas: list + stats + monitoring
-- [ ] User PAC: list + toggle active + reset password + stats
+- [x] User PAC: list + toggle active + reset password + stats
 - [x] Profil + email verify/resend
 - [ ] Realtime (SSE/WebSocket)
