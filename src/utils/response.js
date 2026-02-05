@@ -39,4 +39,14 @@ const paginateMeta = ({ page, limit, total }) => {
   return { page, limit, total, totalPages };
 };
 
-module.exports = { ok, created, paginateMeta };
+const parsePagination = (query = {}, maxLimit = 100) => {
+  const rawPage = parseInt(query.page || "1", 10);
+  const rawLimit = parseInt(query.limit || "10", 10);
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+  const limitBase = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 10;
+  const limit = Math.min(limitBase, maxLimit);
+  const skip = (page - 1) * limit;
+  return { page, limit, skip };
+};
+
+module.exports = { ok, created, paginateMeta, parsePagination };

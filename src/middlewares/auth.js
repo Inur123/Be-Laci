@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { accessTokenSecret } = require("../config/jwt");
 const prisma = require("../utils/prisma");
+const { broadcastLogActivity } = require("../realtime/sse");
 
 const authRequired = async (req, res, next) => {
   const header = req.headers.authorization || "";
@@ -17,7 +18,13 @@ const authRequired = async (req, res, next) => {
     const payload = jwt.verify(token, accessTokenSecret);
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, role: true, tokenVersion: true, isActive: true },
+      select: {
+        id: true,
+        role: true,
+        tokenVersion: true,
+        isActive: true,
+        emailVerified: true,
+      },
     });
 
     const tokenVersion = payload.tv ?? 0;
@@ -28,9 +35,9 @@ const authRequired = async (req, res, next) => {
       return next(error);
     }
 
-    req.user = { id: user.id, role: user.role };
-    try {
-      await prisma.logActivity.create({
+    req.user = { id: user.id, role: user.role, emailVerified: user.emailVerified };
+    prisma.logActivity
+      .create({
         data: {
           userId: user.id,
           action: "REQUEST",
@@ -45,9 +52,12 @@ const authRequired = async (req, res, next) => {
             userAgent: req.headers["user-agent"] || null,
           },
         },
+      })
+      .then((activity) => {
+        broadcastLogActivity({ activity });
+      })
+      .catch(() => {
       });
-    } catch (err) {
-    }
     return next();
   } catch (err) {
     const error = new Error("Token tidak valid");

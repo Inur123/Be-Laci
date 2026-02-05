@@ -1,5 +1,5 @@
 const prisma = require("../utils/prisma");
-const { ok, paginateMeta } = require("../utils/response");
+const { ok, paginateMeta, parsePagination } = require("../utils/response");
 
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
@@ -7,9 +7,7 @@ const isNonEmptyString = (value) =>
 const listMyActivities = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
     const { q, action, method } = req.query;
 
     const where = {
@@ -44,9 +42,7 @@ const listMyActivities = async (req, res, next) => {
 
 const listAllActivities = async (req, res, next) => {
   try {
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
     const { q, action, method, userId } = req.query;
 
     const where = {

@@ -3,34 +3,15 @@ const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const prisma = require("../utils/prisma");
-const { ok, paginateMeta } = require("../utils/response");
+const { ok, paginateMeta, parsePagination } = require("../utils/response");
+const { broadcastEvent } = require("../realtime/sse");
+const { ensureVerifiedUser } = require("../utils/ensureVerified");
 
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
 const normalizeEmail = (value) =>
   typeof value === "string" ? value.trim().toLowerCase() : value;
-
-const ensureVerified = async (userId) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { emailVerified: true },
-  });
-
-  if (!user) {
-    const error = new Error("User tidak ditemukan");
-    error.statusCode = 404;
-    error.code = "NOT_FOUND";
-    throw error;
-  }
-
-  if (!user.emailVerified) {
-    const error = new Error("Email belum terverifikasi");
-    error.statusCode = 403;
-    error.code = "EMAIL_NOT_VERIFIED";
-    throw error;
-  }
-};
 
 const parseStatus = (value) => {
   if (!isNonEmptyString(value)) return undefined;
@@ -51,11 +32,9 @@ const parseVerified = (value) => {
 const listUserPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
 
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
     const { q, status, emailVerified } = req.query;
 
     const isActive = parseStatus(status);
@@ -108,7 +87,7 @@ const listUserPac = async (req, res, next) => {
 const getUserPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const data = await prisma.user.findFirst({
@@ -141,7 +120,7 @@ const getUserPac = async (req, res, next) => {
 const toggleActiveUserPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const user = await prisma.user.findFirst({
@@ -169,6 +148,11 @@ const toggleActiveUserPac = async (req, res, next) => {
       },
     });
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "user_pac", action: "toggle_active", data: updated, userId: updated.id, at: new Date().toISOString() },
+      userId: updated.id,
+    });
     return ok(res, updated);
   } catch (err) {
     return next(err);
@@ -178,7 +162,7 @@ const toggleActiveUserPac = async (req, res, next) => {
 const resetPasswordUserPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const user = await prisma.user.findFirst({
@@ -201,6 +185,11 @@ const resetPasswordUserPac = async (req, res, next) => {
       data: { passwordHash },
     });
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "user_pac", action: "reset_password", data: { id }, userId: id, at: new Date().toISOString() },
+      userId: id,
+    });
     return ok(res, { temporaryPassword: tempPassword, email: normalizeEmail(user.email) });
   } catch (err) {
     return next(err);
@@ -210,7 +199,7 @@ const resetPasswordUserPac = async (req, res, next) => {
 const statsUserPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
 
     const [total, active, verified] = await prisma.$transaction([
       prisma.user.count({ where: { role: "SEKRETARIS_PAC" } }),
@@ -235,7 +224,7 @@ const statsUserPac = async (req, res, next) => {
 const getUserImage = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const data = await prisma.user.findFirst({
@@ -266,7 +255,9 @@ const getUserImage = async (req, res, next) => {
       ? data.image
       : path.resolve(process.cwd(), uploadDir, data.image);
 
-    if (!fs.existsSync(filePath)) {
+    try {
+      await fs.promises.access(filePath);
+    } catch (err) {
       const error = new Error("File tidak ditemukan");
       error.statusCode = 404;
       error.code = "NOT_FOUND";

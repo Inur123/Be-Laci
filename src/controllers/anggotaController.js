@@ -1,7 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const prisma = require("../utils/prisma");
-const { ok, created, paginateMeta } = require("../utils/response");
+const { ok, created, paginateMeta, parsePagination } = require("../utils/response");
+const { broadcastEvent } = require("../realtime/sse");
+const { ensureVerifiedUser } = require("../utils/ensureVerified");
 
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
@@ -18,27 +20,6 @@ const buildValidationError = (fields, message = "Validasi gagal") => {
   error.code = "VALIDATION_ERROR";
   error.details = { fields };
   return error;
-};
-
-const ensureVerified = async (userId) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { emailVerified: true },
-  });
-
-  if (!user) {
-    const error = new Error("User tidak ditemukan");
-    error.statusCode = 404;
-    error.code = "NOT_FOUND";
-    throw error;
-  }
-
-  if (!user.emailVerified) {
-    const error = new Error("Email belum terverifikasi");
-    error.statusCode = 403;
-    error.code = "EMAIL_NOT_VERIFIED";
-    throw error;
-  }
 };
 
 const resolveActivePeriode = async (userId) => {
@@ -70,11 +51,9 @@ const resolveActivePeriode = async (userId) => {
 const listAnggota = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
 
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
     const { q, periodeId } = req.query;
 
     const where = {
@@ -117,7 +96,7 @@ const listAnggota = async (req, res, next) => {
 const getAnggota = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const data = await prisma.anggota.findFirst({
@@ -140,7 +119,7 @@ const getAnggota = async (req, res, next) => {
 const createAnggota = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
 
     const {
       namaLengkap,
@@ -237,6 +216,11 @@ const createAnggota = async (req, res, next) => {
       },
     });
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "anggota", action: "create", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return created(res, data);
   } catch (err) {
     return next(err);
@@ -246,7 +230,7 @@ const createAnggota = async (req, res, next) => {
 const updateAnggota = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const {
@@ -355,6 +339,11 @@ const updateAnggota = async (req, res, next) => {
       },
     });
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "anggota", action: "update", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, data);
   } catch (err) {
     return next(err);
@@ -364,7 +353,7 @@ const updateAnggota = async (req, res, next) => {
 const deleteAnggota = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const deleted = await prisma.anggota.deleteMany({
@@ -378,6 +367,11 @@ const deleteAnggota = async (req, res, next) => {
       throw error;
     }
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "anggota", action: "delete", data: { id }, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, {});
   } catch (err) {
     return next(err);
@@ -387,7 +381,7 @@ const deleteAnggota = async (req, res, next) => {
 const statsAnggota = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { groupBy } = req.query;
 
     const [total] = await prisma.$transaction([
@@ -419,7 +413,7 @@ const statsAnggota = async (req, res, next) => {
 const getAnggotaImage = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const data = await prisma.anggota.findFirst({
@@ -450,7 +444,9 @@ const getAnggotaImage = async (req, res, next) => {
       ? data.foto
       : path.resolve(process.cwd(), uploadDir, data.foto);
 
-    if (!fs.existsSync(filePath)) {
+    try {
+      await fs.promises.access(filePath);
+    } catch (err) {
       const error = new Error("File tidak ditemukan");
       error.statusCode = 404;
       error.code = "NOT_FOUND";

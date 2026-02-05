@@ -1,8 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const prisma = require("../utils/prisma");
-const { ok, created, paginateMeta } = require("../utils/response");
-const { sendEmail } = require("../utils/email");
+const { ok, created, paginateMeta, parsePagination } = require("../utils/response");
+const { broadcastEvent } = require("../realtime/sse");
+const { enqueueEmail } = require("../utils/email");
+const { ensureVerifiedUser } = require("../utils/ensureVerified");
 const {
   pengajuanPACUserTemplate,
   pengajuanPACAdminTemplate,
@@ -37,27 +39,6 @@ const buildValidationError = (fields, message = "Validasi gagal") => {
   error.code = "VALIDATION_ERROR";
   error.details = { fields };
   return error;
-};
-
-const ensureVerified = async (userId) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { emailVerified: true },
-  });
-
-  if (!user) {
-    const error = new Error("User tidak ditemukan");
-    error.statusCode = 404;
-    error.code = "NOT_FOUND";
-    throw error;
-  }
-
-  if (!user.emailVerified) {
-    const error = new Error("Email belum terverifikasi");
-    error.statusCode = 403;
-    error.code = "EMAIL_NOT_VERIFIED";
-    throw error;
-  }
 };
 
 const resolveActivePeriode = async (userId) => {
@@ -98,12 +79,10 @@ const ensureRole = (req, allowed) => {
 const listPengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     ensureRole(req, ["SEKRETARIS_PAC"]);
 
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
     const { q, status, penerima } = req.query;
 
     const normalizedStatus = isNonEmptyString(status)
@@ -147,12 +126,10 @@ const listPengajuanPac = async (req, res, next) => {
 const listPengajuanPacCabang = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     ensureRole(req, ["SEKRETARIS_CABANG"]);
 
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
     const { q, status, penerima, pacId } = req.query;
 
     const normalizedStatus = isNonEmptyString(status)
@@ -196,7 +173,7 @@ const listPengajuanPacCabang = async (req, res, next) => {
 const getPengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const isPac = req.user.role === "SEKRETARIS_PAC";
@@ -219,7 +196,7 @@ const getPengajuanPac = async (req, res, next) => {
 const createPengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     ensureRole(req, ["SEKRETARIS_PAC"]);
 
     const {
@@ -277,18 +254,20 @@ const createPengajuanPac = async (req, res, next) => {
       },
     });
 
-    const pacUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, email: true },
-    });
-    const cabangUsers = await prisma.user.findMany({
-      where: {
-        role: "SEKRETARIS_CABANG",
-        isActive: true,
-        emailVerified: { not: null },
-      },
-      select: { email: true },
-    });
+    const [pacUser, cabangUsers] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true },
+      }),
+      prisma.user.findMany({
+        where: {
+          role: "SEKRETARIS_CABANG",
+          isActive: true,
+          emailVerified: { not: null },
+        },
+        select: { email: true },
+      }),
+    ]);
 
     const cabangEmails = cabangUsers
       .map((item) => item.email)
@@ -303,49 +282,48 @@ const createPengajuanPac = async (req, res, next) => {
     const userName = pacUser?.name || "Pengaju";
 
     if (pacUser?.email) {
-      try {
-        await sendEmail({
-          to: pacUser.email,
-          subject: "Pengajuan PAC berhasil dikirim",
-          html: pengajuanPACUserTemplate({
-            userName,
-            pacName,
-            submissionDate,
-            detailUrl,
-          }),
-          text: pengajuanPACUserText({
-            userName,
-            pacName,
-            submissionDate,
-            detailUrl,
-          }),
-        });
-      } catch (err) {
-      }
+      enqueueEmail({
+        to: pacUser.email,
+        subject: "Pengajuan PAC berhasil dikirim",
+        html: pengajuanPACUserTemplate({
+          userName,
+          pacName,
+          submissionDate,
+          detailUrl,
+        }),
+        text: pengajuanPACUserText({
+          userName,
+          pacName,
+          submissionDate,
+          detailUrl,
+        }),
+      });
     }
 
     if (cabangEmails.length > 0) {
-      try {
-        await sendEmail({
-          to: cabangEmails,
-          subject: "Pengajuan PAC baru menunggu proses",
-          html: pengajuanPACAdminTemplate({
-            userName,
-            pacName,
-            submissionDate,
-            detailUrl,
-          }),
-          text: pengajuanPACAdminText({
-            userName,
-            pacName,
-            submissionDate,
-            detailUrl,
-          }),
-        });
-      } catch (err) {
-      }
+      enqueueEmail({
+        to: cabangEmails,
+        subject: "Pengajuan PAC baru menunggu proses",
+        html: pengajuanPACAdminTemplate({
+          userName,
+          pacName,
+          submissionDate,
+          detailUrl,
+        }),
+        text: pengajuanPACAdminText({
+          userName,
+          pacName,
+          submissionDate,
+          detailUrl,
+        }),
+      });
     }
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "pengajuan_pac", action: "create", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return created(res, data);
   } catch (err) {
     return next(err);
@@ -355,7 +333,7 @@ const createPengajuanPac = async (req, res, next) => {
 const updatePengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     ensureRole(req, ["SEKRETARIS_PAC"]);
     const { id } = req.params;
     const {
@@ -426,6 +404,11 @@ const updatePengajuanPac = async (req, res, next) => {
       },
     });
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "pengajuan_pac", action: "update", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, data);
   } catch (err) {
     return next(err);
@@ -435,7 +418,7 @@ const updatePengajuanPac = async (req, res, next) => {
 const deletePengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     ensureRole(req, ["SEKRETARIS_PAC"]);
     const { id } = req.params;
 
@@ -458,6 +441,11 @@ const deletePengajuanPac = async (req, res, next) => {
     }
 
     await prisma.pengajuanPac.deleteMany({ where: { id, userId } });
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "pengajuan_pac", action: "delete", data: { id }, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, {});
   } catch (err) {
     return next(err);
@@ -467,7 +455,7 @@ const deletePengajuanPac = async (req, res, next) => {
 const downloadPengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
     const isPac = req.user.role === "SEKRETARIS_PAC";
     const where = isPac ? { id, userId } : { id };
@@ -500,7 +488,9 @@ const downloadPengajuanPac = async (req, res, next) => {
       ? data.fileUrl
       : path.resolve(process.cwd(), uploadDir, data.fileUrl);
 
-    if (!fs.existsSync(filePath)) {
+    try {
+      await fs.promises.access(filePath);
+    } catch (err) {
       const error = new Error("File tidak ditemukan");
       error.statusCode = 404;
       error.code = "NOT_FOUND";
@@ -516,7 +506,7 @@ const downloadPengajuanPac = async (req, res, next) => {
 const approvePengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     ensureRole(req, ["SEKRETARIS_CABANG"]);
     const { id } = req.params;
 
@@ -535,7 +525,13 @@ const approvePengajuanPac = async (req, res, next) => {
       throw error;
     }
 
-    const periodeCabang = await resolveActivePeriode(userId);
+    const [periodeCabang, pacUser] = await Promise.all([
+      resolveActivePeriode(userId),
+      prisma.user.findUnique({
+        where: { id: existing.userId },
+        select: { email: true, name: true },
+      }),
+    ]);
     if (!periodeCabang) {
       const error = new Error("Tidak ada periode aktif");
       error.statusCode = 400;
@@ -552,11 +548,6 @@ const approvePengajuanPac = async (req, res, next) => {
       },
     });
 
-    const pacUser = await prisma.user.findUnique({
-      where: { id: existing.userId },
-      select: { email: true, name: true },
-    });
-
     if (pacUser?.email) {
       const appUrl = process.env.APP_URL;
       const detailUrl = appUrl
@@ -564,27 +555,29 @@ const approvePengajuanPac = async (req, res, next) => {
         : "";
       const pacName = pacUser?.name || "PAC";
       const userName = pacUser?.name || "Pengaju";
-      try {
-        await sendEmail({
-          to: pacUser.email,
-          subject: "Pengajuan PAC diterima",
-          html: pengajuanPACStatusTemplate({
-            userName,
-            pacName,
-            status: "DITERIMA",
-            detailUrl,
-          }),
-          text: pengajuanPACStatusText({
-            userName,
-            pacName,
-            status: "DITERIMA",
-            detailUrl,
-          }),
-        });
-      } catch (err) {
-      }
+      enqueueEmail({
+        to: pacUser.email,
+        subject: "Pengajuan PAC diterima",
+        html: pengajuanPACStatusTemplate({
+          userName,
+          pacName,
+          status: "DITERIMA",
+          detailUrl,
+        }),
+        text: pengajuanPACStatusText({
+          userName,
+          pacName,
+          status: "DITERIMA",
+          detailUrl,
+        }),
+      });
     }
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "pengajuan_pac", action: "approve", data, userId: existing.userId, at: new Date().toISOString() },
+      userId: existing.userId,
+    });
     return ok(res, data);
   } catch (err) {
     return next(err);
@@ -594,7 +587,7 @@ const approvePengajuanPac = async (req, res, next) => {
 const rejectPengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     ensureRole(req, ["SEKRETARIS_CABANG"]);
     const { id } = req.params;
     const { alasanPenolakan } = req.body || {};
@@ -618,7 +611,13 @@ const rejectPengajuanPac = async (req, res, next) => {
       throw error;
     }
 
-    const periodeCabang = await resolveActivePeriode(userId);
+    const [periodeCabang, pacUser] = await Promise.all([
+      resolveActivePeriode(userId),
+      prisma.user.findUnique({
+        where: { id: existing.userId },
+        select: { email: true, name: true },
+      }),
+    ]);
     if (!periodeCabang) {
       const error = new Error("Tidak ada periode aktif");
       error.statusCode = 400;
@@ -635,11 +634,6 @@ const rejectPengajuanPac = async (req, res, next) => {
       },
     });
 
-    const pacUser = await prisma.user.findUnique({
-      where: { id: existing.userId },
-      select: { email: true, name: true },
-    });
-
     if (pacUser?.email) {
       const appUrl = process.env.APP_URL;
       const detailUrl = appUrl
@@ -647,29 +641,31 @@ const rejectPengajuanPac = async (req, res, next) => {
         : "";
       const pacName = pacUser?.name || "PAC";
       const userName = pacUser?.name || "Pengaju";
-      try {
-        await sendEmail({
-          to: pacUser.email,
-          subject: "Pengajuan PAC ditolak",
-          html: pengajuanPACStatusTemplate({
-            userName,
-            pacName,
-            status: "DITOLAK",
-            alasanPenolakan,
-            detailUrl,
-          }),
-          text: pengajuanPACStatusText({
-            userName,
-            pacName,
-            status: "DITOLAK",
-            alasanPenolakan,
-            detailUrl,
-          }),
-        });
-      } catch (err) {
-      }
+      enqueueEmail({
+        to: pacUser.email,
+        subject: "Pengajuan PAC ditolak",
+        html: pengajuanPACStatusTemplate({
+          userName,
+          pacName,
+          status: "DITOLAK",
+          alasanPenolakan,
+          detailUrl,
+        }),
+        text: pengajuanPACStatusText({
+          userName,
+          pacName,
+          status: "DITOLAK",
+          alasanPenolakan,
+          detailUrl,
+        }),
+      });
     }
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "pengajuan_pac", action: "reject", data, userId: existing.userId, at: new Date().toISOString() },
+      userId: existing.userId,
+    });
     return ok(res, data);
   } catch (err) {
     return next(err);
@@ -679,7 +675,7 @@ const rejectPengajuanPac = async (req, res, next) => {
 const statsPengajuanPac = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
 
     const isPac = req.user.role === "SEKRETARIS_PAC";
     const where = isPac ? { userId } : {};

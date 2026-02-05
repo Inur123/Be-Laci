@@ -10,6 +10,7 @@ const userRoutes = require("./users");
 const anggotaRoutes = require("./anggota");
 const kegiatanRoutes = require("./kegiatan");
 const logActivityRoutes = require("./logActivity");
+const realtimeRoutes = require("./realtime");
 
 const router = express.Router();
 
@@ -28,5 +29,6 @@ router.use("/users", userRoutes);
 router.use("/anggota", anggotaRoutes);
 router.use("/kegiatan", kegiatanRoutes);
 router.use("/log-activity", logActivityRoutes);
+router.use("/realtime", realtimeRoutes);
 
 module.exports = router;

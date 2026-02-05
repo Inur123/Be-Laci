@@ -1,5 +1,6 @@
 const prisma = require("../utils/prisma");
-const { ok, created, paginateMeta } = require("../utils/response");
+const { ok, created, paginateMeta, parsePagination } = require("../utils/response");
+const { broadcastEvent } = require("../realtime/sse");
 
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
@@ -15,9 +16,7 @@ const buildValidationError = (fields) => {
 const listPeriode = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
 
     const [total, data] = await prisma.$transaction([
       prisma.periode.count({ where: { userId } }),
@@ -149,6 +148,11 @@ const createPeriode = async (req, res, next) => {
       });
     }
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "periode", action: "create", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return created(res, data);
   } catch (err) {
     return next(err);
@@ -216,6 +220,11 @@ const updatePeriode = async (req, res, next) => {
     }
 
     const data = await prisma.periode.findUnique({ where: { id } });
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "periode", action: "update", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, data);
   } catch (err) {
     return next(err);
@@ -258,6 +267,11 @@ const deletePeriode = async (req, res, next) => {
       throw error;
     }
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "periode", action: "delete", data: { id }, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, {});
   } catch (err) {
     return next(err);
@@ -289,6 +303,11 @@ const activatePeriode = async (req, res, next) => {
     ]);
 
     const data = await prisma.periode.findUnique({ where: { id } });
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "periode", action: "activate", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, data);
   } catch (err) {
     return next(err);

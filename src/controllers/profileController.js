@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const prisma = require("../utils/prisma");
 const { ok } = require("../utils/response");
-const { sendEmail } = require("../utils/email");
+const { enqueueEmail } = require("../utils/email");
 const {
   verificationEmailTemplate,
   verificationEmailText,
@@ -188,21 +188,18 @@ const requestEmailVerification = async (req, res, next) => {
       : null;
 
     if (verificationUrl && user.email) {
-      try {
-        await sendEmail({
-          to: user.email,
-          subject: "Verifikasi Email Laci Digital",
-          html: verificationEmailTemplate({
-            name: user.name || "Pengguna",
-            verificationUrl,
-          }),
-          text: verificationEmailText({
-            name: user.name || "Pengguna",
-            verificationUrl,
-          }),
-        });
-      } catch (err) {
-      }
+      enqueueEmail({
+        to: user.email,
+        subject: "Verifikasi Email Laci Digital",
+        html: verificationEmailTemplate({
+          name: user.name || "Pengguna",
+          verificationUrl,
+        }),
+        text: verificationEmailText({
+          name: user.name || "Pengguna",
+          verificationUrl,
+        }),
+      });
     }
 
     return ok(res, {

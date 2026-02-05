@@ -1,5 +1,7 @@
 const prisma = require("../utils/prisma");
-const { ok, created, paginateMeta } = require("../utils/response");
+const { ok, created, paginateMeta, parsePagination } = require("../utils/response");
+const { ensureVerifiedUser } = require("../utils/ensureVerified");
+const { broadcastEvent } = require("../realtime/sse");
 
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
@@ -36,27 +38,6 @@ const buildValidationError = (fields, message = "Validasi gagal") => {
   return error;
 };
 
-const ensureVerified = async (userId) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { emailVerified: true },
-  });
-
-  if (!user) {
-    const error = new Error("User tidak ditemukan");
-    error.statusCode = 404;
-    error.code = "NOT_FOUND";
-    throw error;
-  }
-
-  if (!user.emailVerified) {
-    const error = new Error("Email belum terverifikasi");
-    error.statusCode = 403;
-    error.code = "EMAIL_NOT_VERIFIED";
-    throw error;
-  }
-};
-
 const resolveActivePeriode = async (userId) => {
   let periode = await prisma.periode.findFirst({
     where: { userId, isActive: true },
@@ -86,11 +67,9 @@ const resolveActivePeriode = async (userId) => {
 const listKegiatan = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
 
-    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-    const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
     const { q, periodeId, tanggal } = req.query;
 
     const parsedTanggal = isNonEmptyString(tanggal) ? parseDate(tanggal) : null;
@@ -144,7 +123,7 @@ const listKegiatan = async (req, res, next) => {
 const getKegiatan = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const data = await prisma.kegiatan.findFirst({
@@ -167,7 +146,7 @@ const getKegiatan = async (req, res, next) => {
 const createKegiatan = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
 
     const {
       judul,
@@ -250,6 +229,11 @@ const createKegiatan = async (req, res, next) => {
       },
     });
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "kegiatan", action: "create", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return created(res, data);
   } catch (err) {
     return next(err);
@@ -259,7 +243,7 @@ const createKegiatan = async (req, res, next) => {
 const updateKegiatan = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const {
@@ -357,6 +341,11 @@ const updateKegiatan = async (req, res, next) => {
       },
     });
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "kegiatan", action: "update", data, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, data);
   } catch (err) {
     return next(err);
@@ -366,7 +355,7 @@ const updateKegiatan = async (req, res, next) => {
 const deleteKegiatan = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { id } = req.params;
 
     const deleted = await prisma.kegiatan.deleteMany({
@@ -380,6 +369,11 @@ const deleteKegiatan = async (req, res, next) => {
       throw error;
     }
 
+    broadcastEvent({
+      event: "entity_change",
+      payload: { entity: "kegiatan", action: "delete", data: { id }, userId, at: new Date().toISOString() },
+      userId,
+    });
     return ok(res, {});
   } catch (err) {
     return next(err);
@@ -389,7 +383,7 @@ const deleteKegiatan = async (req, res, next) => {
 const statsKegiatan = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    await ensureVerified(userId);
+    await ensureVerifiedUser({ userId, emailVerified: req.user.emailVerified });
     const { groupBy } = req.query;
 
     const total = await prisma.kegiatan.count({ where: { userId } });
