@@ -2,6 +2,11 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const prisma = require("../utils/prisma");
 const { ok } = require("../utils/response");
+const { sendEmail } = require("../utils/email");
+const {
+  verificationEmailTemplate,
+  verificationEmailText,
+} = require("../utils/emailTemplates");
 
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
@@ -151,7 +156,7 @@ const requestEmailVerification = async (req, res, next) => {
     const userId = req.user.id;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, emailVerified: true },
+      select: { id: true, name: true, email: true, emailVerified: true },
     });
 
     if (!user) {
@@ -176,6 +181,29 @@ const requestEmailVerification = async (req, res, next) => {
         emailVerifyExpiresAt: expiresAt,
       },
     });
+
+    const appUrl = process.env.APP_URL;
+    const verificationUrl = appUrl
+      ? `${appUrl.replace(/\/$/, "")}/verify-email?token=${encodeURIComponent(token)}`
+      : null;
+
+    if (verificationUrl && user.email) {
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "Verifikasi Email Laci Digital",
+          html: verificationEmailTemplate({
+            name: user.name || "Pengguna",
+            verificationUrl,
+          }),
+          text: verificationEmailText({
+            name: user.name || "Pengguna",
+            verificationUrl,
+          }),
+        });
+      } catch (err) {
+      }
+    }
 
     return ok(res, {
       verified: false,

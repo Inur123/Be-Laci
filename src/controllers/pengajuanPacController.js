@@ -3,6 +3,14 @@ const path = require("path");
 const prisma = require("../utils/prisma");
 const { ok, created, paginateMeta } = require("../utils/response");
 const { sendEmail } = require("../utils/email");
+const {
+  pengajuanPACUserTemplate,
+  pengajuanPACAdminTemplate,
+  pengajuanPACUserText,
+  pengajuanPACAdminText,
+  pengajuanPACStatusTemplate,
+  pengajuanPACStatusText,
+} = require("../utils/emailTemplates");
 
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
@@ -14,6 +22,13 @@ const parseDate = (value) => {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("id-ID");
 };
 
 const buildValidationError = (fields, message = "Validasi gagal") => {
@@ -279,37 +294,31 @@ const createPengajuanPac = async (req, res, next) => {
       .map((item) => item.email)
       .filter((email) => isNonEmptyString(email));
 
-    const subjectPac = "Pengajuan PAC berhasil dikirim";
-    const subjectCabang = "Pengajuan PAC baru menunggu proses";
-    const bodyPac = `
-      <p>Pengajuan PAC berhasil dikirim dan akan diproses oleh sekretaris cabang.</p>
-      <p>Nomor Surat: ${nomorSurat}</p>
-      <p>Penerima: ${normalizedPenerima}</p>
-      <p>Tanggal: ${tanggal}</p>
-      <p>Keperluan: ${keperluan}</p>
-      <p>Status: PENDING</p>
-    `;
-    const bodyCabang = `
-      <p>Ada pengajuan PAC baru dari ${pacUser?.name || "PAC"}.</p>
-      <p>Nomor Surat: ${nomorSurat}</p>
-      <p>Penerima: ${normalizedPenerima}</p>
-      <p>Tanggal: ${tanggal}</p>
-      <p>Keperluan: ${keperluan}</p>
-      <p>Status: PENDING</p>
-    `;
+    const appUrl = process.env.APP_URL;
+    const detailUrl = appUrl
+      ? `${appUrl.replace(/\/$/, "")}/pengajuan-pac/${data.id}`
+      : "";
+    const submissionDate = formatDate(parsedTanggal) || formatDate(data.createdAt);
+    const pacName = pacUser?.name || "PAC";
+    const userName = pacUser?.name || "Pengaju";
 
     if (pacUser?.email) {
       try {
         await sendEmail({
           to: pacUser.email,
-          subject: subjectPac,
-          html: bodyPac,
-          text: `Pengajuan PAC berhasil dikirim dan akan diproses oleh sekretaris cabang.
-Nomor Surat: ${nomorSurat}
-Penerima: ${normalizedPenerima}
-Tanggal: ${tanggal}
-Keperluan: ${keperluan}
-Status: PENDING`,
+          subject: "Pengajuan PAC berhasil dikirim",
+          html: pengajuanPACUserTemplate({
+            userName,
+            pacName,
+            submissionDate,
+            detailUrl,
+          }),
+          text: pengajuanPACUserText({
+            userName,
+            pacName,
+            submissionDate,
+            detailUrl,
+          }),
         });
       } catch (err) {
       }
@@ -319,14 +328,19 @@ Status: PENDING`,
       try {
         await sendEmail({
           to: cabangEmails,
-          subject: subjectCabang,
-          html: bodyCabang,
-          text: `Ada pengajuan PAC baru.
-Nomor Surat: ${nomorSurat}
-Penerima: ${normalizedPenerima}
-Tanggal: ${tanggal}
-Keperluan: ${keperluan}
-Status: PENDING`,
+          subject: "Pengajuan PAC baru menunggu proses",
+          html: pengajuanPACAdminTemplate({
+            userName,
+            pacName,
+            submissionDate,
+            detailUrl,
+          }),
+          text: pengajuanPACAdminText({
+            userName,
+            pacName,
+            submissionDate,
+            detailUrl,
+          }),
         });
       } catch (err) {
       }
@@ -544,26 +558,28 @@ const approvePengajuanPac = async (req, res, next) => {
     });
 
     if (pacUser?.email) {
-      const subject = "Pengajuan PAC diterima";
-      const html = `
-        <p>Pengajuan PAC kamu telah diterima oleh sekretaris cabang.</p>
-        <p>Nomor Surat: ${existing.nomorSurat}</p>
-        <p>Penerima: ${existing.penerima}</p>
-        <p>Tanggal: ${existing.tanggal}</p>
-        <p>Keperluan: ${existing.keperluan}</p>
-        <p>Status: DITERIMA</p>
-      `;
+      const appUrl = process.env.APP_URL;
+      const detailUrl = appUrl
+        ? `${appUrl.replace(/\/$/, "")}/pengajuan-pac/${existing.id}`
+        : "";
+      const pacName = pacUser?.name || "PAC";
+      const userName = pacUser?.name || "Pengaju";
       try {
         await sendEmail({
           to: pacUser.email,
-          subject,
-          html,
-          text: `Pengajuan PAC diterima.
-Nomor Surat: ${existing.nomorSurat}
-Penerima: ${existing.penerima}
-Tanggal: ${existing.tanggal}
-Keperluan: ${existing.keperluan}
-Status: DITERIMA`,
+          subject: "Pengajuan PAC diterima",
+          html: pengajuanPACStatusTemplate({
+            userName,
+            pacName,
+            status: "DITERIMA",
+            detailUrl,
+          }),
+          text: pengajuanPACStatusText({
+            userName,
+            pacName,
+            status: "DITERIMA",
+            detailUrl,
+          }),
         });
       } catch (err) {
       }
@@ -625,28 +641,30 @@ const rejectPengajuanPac = async (req, res, next) => {
     });
 
     if (pacUser?.email) {
-      const subject = "Pengajuan PAC ditolak";
-      const html = `
-        <p>Pengajuan PAC kamu ditolak oleh sekretaris cabang.</p>
-        <p>Nomor Surat: ${existing.nomorSurat}</p>
-        <p>Penerima: ${existing.penerima}</p>
-        <p>Tanggal: ${existing.tanggal}</p>
-        <p>Keperluan: ${existing.keperluan}</p>
-        <p>Alasan: ${alasanPenolakan}</p>
-        <p>Status: DITOLAK</p>
-      `;
+      const appUrl = process.env.APP_URL;
+      const detailUrl = appUrl
+        ? `${appUrl.replace(/\/$/, "")}/pengajuan-pac/${existing.id}`
+        : "";
+      const pacName = pacUser?.name || "PAC";
+      const userName = pacUser?.name || "Pengaju";
       try {
         await sendEmail({
           to: pacUser.email,
-          subject,
-          html,
-          text: `Pengajuan PAC ditolak.
-Nomor Surat: ${existing.nomorSurat}
-Penerima: ${existing.penerima}
-Tanggal: ${existing.tanggal}
-Keperluan: ${existing.keperluan}
-Alasan: ${alasanPenolakan}
-Status: DITOLAK`,
+          subject: "Pengajuan PAC ditolak",
+          html: pengajuanPACStatusTemplate({
+            userName,
+            pacName,
+            status: "DITOLAK",
+            alasanPenolakan,
+            detailUrl,
+          }),
+          text: pengajuanPACStatusText({
+            userName,
+            pacName,
+            status: "DITOLAK",
+            alasanPenolakan,
+            detailUrl,
+          }),
         });
       } catch (err) {
       }
