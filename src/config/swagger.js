@@ -1,4 +1,8 @@
+require("dotenv/config");
 const swaggerJSDoc = require("swagger-jsdoc");
+
+const port = process.env.PORT || 3000;
+const appUrl = process.env.APP_URL || `http://localhost:${port}`;
 
 const options = {
   definition: {
@@ -9,7 +13,7 @@ const options = {
     },
     servers: [
       {
-        url: "http://localhost:3000",
+        url: appUrl,
       },
     ],
     components: {
